@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"zaplogs"
+	"github.com/winezer0/zaplogs"
 )
 
 func main() {
@@ -51,11 +51,11 @@ func main() {
 	customConfig := zaplogs.LogConfig{
 		Level:         "debug",
 		LogFile:       filepath.Join(logDir, "custom.log"),
-		ConsoleFormat: "LM",   // 控制台仅显示级别+消息
-		MaxSize:       1,      // 单个文件最大 1MB（便于测试轮转）
-		MaxBackups:    5,      // 最多保留 5 个备份
-		MaxAge:        7,      // 保留 7 天
-		Compress:      false,  // 不压缩（便于查看）
+		ConsoleFormat: "LM",  // 控制台仅显示级别+消息
+		MaxSize:       1,     // 单个文件最大 1MB（便于测试轮转）
+		MaxBackups:    5,     // 最多保留 5 个备份
+		MaxAge:        7,     // 保留 7 天
+		Compress:      false, // 不压缩（便于查看）
 	}
 
 	customLogger, err := zaplogs.CreateLogger("custom-rotation", customConfig)

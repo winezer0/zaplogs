@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"zaplogs"
+	"github.com/winezer0/zaplogs"
 )
 
 func main() {

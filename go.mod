@@ -1,6 +1,6 @@
-module zaplogs
+module github.com/winezer0/zaplogs
 
-go 1.26
+go 1.22.0
 
 require (
 	go.uber.org/zap v1.28.0
