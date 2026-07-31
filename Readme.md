@@ -123,6 +123,15 @@ func main() {
 
 示例：`"TLCM"` 输出完整信息，`"LM"` 仅输出级别和消息，`"off"` 关闭控制台。
 
+### 配置函数
+
+```go
+zaplogs.NewLogConfig(level, logFile, consoleFormat string) LogConfig
+zaplogs.NewLogConfigEmpty() LogConfig
+```
+
+`NewLogConfig` 提供默认参数值（`MaxSize=100`、`MaxBackups=10`、`MaxAge=30`、`Compress=true`）；`NewLogConfigEmpty` 返回全部默认值（`MaxBackups` 默认 `3`，其余与 `NewLogConfig` 一致）。
+
 ## API 概览
 
 ### 全局函数（使用默认日志器）
@@ -139,7 +148,11 @@ zaplogs.Errorf(template string, args ...interface{})
 zaplogs.Fatal(args ...interface{})
 zaplogs.Fatalf(template string, args ...interface{})
 zaplogs.Sync() error
+zaplogs.DefaultLogger() *Logger
+zaplogs.DefaultZapLogger() *zap.Logger
 ```
+
+> `DefaultLogger()` 返回默认的 `*Logger` 实例，可赋给自定义接口类型或用于依赖注入；`DefaultZapLogger()` 返回底层 `*zap.Logger`，供结构化日志调用方使用。
 
 ### 日志器管理
 
@@ -148,6 +161,8 @@ zaplogs.CreateLogger(name string, config LogConfig) (*Logger, error)
 zaplogs.GetLogger(name string) (*Logger, bool)
 zaplogs.CloseAll() error
 ```
+
+> `CloseAll()` 会先刷新所有日志器缓冲，再关闭底层日志文件（释放文件句柄），并重置默认日志器 —— 之后调用全局函数会自动重新初始化默认日志器。
 
 ### Logger 实例方法
 
@@ -163,7 +178,12 @@ logger.Errorf(template string, args ...interface{})
 logger.Fatal(args ...interface{})
 logger.Fatalf(template string, args ...interface{})
 logger.Sync() error
+logger.ZapLogger() *zap.Logger
+logger.SugaredLogger() *zap.SugaredLogger
+logger.Close() error
 ```
+
+> `ZapLogger()` / `SugaredLogger()` 返回底层 zap 原始对象，供需要结构化字段或 sugared API 的第三方库使用；`Close()` 关闭该日志器的底层文件，调用前应确保不再有并发日志写入。
 
 ## 示例
 

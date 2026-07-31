@@ -123,6 +123,15 @@ The format string is composed of the following characters:
 
 Examples: `"TLCM"` outputs full info, `"LM"` outputs level and message only, `"off"` disables console.
 
+### Configuration Functions
+
+```go
+zaplogs.NewLogConfig(level, logFile, consoleFormat string) LogConfig
+zaplogs.NewLogConfigEmpty() LogConfig
+```
+
+`NewLogConfig` provides default parameter values (`MaxSize=100`, `MaxBackups=10`, `MaxAge=30`, `Compress=true`); `NewLogConfigEmpty` returns all defaults (`MaxBackups` defaults to `3`, others identical to `NewLogConfig`).
+
 ## API Overview
 
 ### Global Functions (Using Default Logger)
@@ -139,7 +148,11 @@ zaplogs.Errorf(template string, args ...interface{})
 zaplogs.Fatal(args ...interface{})
 zaplogs.Fatalf(template string, args ...interface{})
 zaplogs.Sync() error
+zaplogs.DefaultLogger() *Logger
+zaplogs.DefaultZapLogger() *zap.Logger
 ```
+
+> `DefaultLogger()` returns the default `*Logger` instance, which can be assigned to custom interface types or used for dependency injection; `DefaultZapLogger()` returns the underlying `*zap.Logger` for structured-logging consumers.
 
 ### Logger Management
 
@@ -148,6 +161,8 @@ zaplogs.CreateLogger(name string, config LogConfig) (*Logger, error)
 zaplogs.GetLogger(name string) (*Logger, bool)
 zaplogs.CloseAll() error
 ```
+
+> `CloseAll()` first flushes all logger buffers, then closes the underlying log files (releasing file handles), and resets the default logger — subsequent global function calls will automatically re-initialize the default logger.
 
 ### Logger Instance Methods
 
@@ -163,7 +178,12 @@ logger.Errorf(template string, args ...interface{})
 logger.Fatal(args ...interface{})
 logger.Fatalf(template string, args ...interface{})
 logger.Sync() error
+logger.ZapLogger() *zap.Logger
+logger.SugaredLogger() *zap.SugaredLogger
+logger.Close() error
 ```
+
+> `ZapLogger()` / `SugaredLogger()` return the underlying raw zap objects for third-party libraries that need structured fields or the sugared API; `Close()` closes the logger's underlying file — make sure no concurrent writes are in progress before calling it.
 
 ## Examples
 
