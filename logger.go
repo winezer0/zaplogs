@@ -15,7 +15,6 @@ import (
 // Logger 日志器实例，线程安全
 type Logger struct {
 	zapLogger *zap.Logger
-	sugar     *zap.SugaredLogger
 	config    LogConfig
 	mu        sync.RWMutex
 }
@@ -63,10 +62,6 @@ func (l *Logger) init() error {
 		fileEncoderCfg := zap.NewProductionEncoderConfig()
 		// 配置时间格式为ISO8601(如：2024-05-20T15:30:00.000Z)
 		fileEncoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
-		// (可选)自定义时间格式示例(如：2024-05-20 15:30:00.000)
-		// fileEncoderCfg.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-		// 	enc.AppendString(t.Format("2006-01-02 15:04:05.000"))
-		// }
 
 		// 创建JSON格式编码器
 		fileEncoder := zapcore.NewJSONEncoder(fileEncoderCfg)
@@ -87,96 +82,74 @@ func (l *Logger) init() error {
 		zap.AddCaller(),      // 显示调用位置(如 main.go:20)
 		zap.AddCallerSkip(2), // 跳过内部方法，显示真实业务代码位置
 	)
-	l.sugar = l.zapLogger.Sugar()
 
 	return nil
 }
 
 // 日志输出方法
+// 注意：zap.Logger / zap.SugaredLogger 本身已是 goroutine-safe，无需额外锁
 func (l *Logger) Debugf(template string, args ...interface{}) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if l.sugar != nil {
-		l.sugar.Debugf(template, args...)
+	if l.zapLogger != nil {
+		l.zapLogger.Sugar().Debugf(template, args...)
 	}
 }
 
 func (l *Logger) Infof(template string, args ...interface{}) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if l.sugar != nil {
-		l.sugar.Infof(template, args...)
+	if l.zapLogger != nil {
+		l.zapLogger.Sugar().Infof(template, args...)
 	}
 }
 
 func (l *Logger) Warnf(template string, args ...interface{}) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if l.sugar != nil {
-		l.sugar.Warnf(template, args...)
+	if l.zapLogger != nil {
+		l.zapLogger.Sugar().Warnf(template, args...)
 	}
 }
 
 func (l *Logger) Errorf(template string, args ...interface{}) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if l.sugar != nil {
-		l.sugar.Errorf(template, args...)
+	if l.zapLogger != nil {
+		l.zapLogger.Sugar().Errorf(template, args...)
 	}
 }
 
 func (l *Logger) Fatalf(template string, args ...interface{}) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if l.sugar != nil {
-		l.sugar.Fatalf(template, args...)
+	if l.zapLogger != nil {
+		l.zapLogger.Sugar().Fatalf(template, args...)
 	}
 }
 
 func (l *Logger) Debug(args ...interface{}) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if l.sugar != nil {
-		l.sugar.Debug(args...)
+	if l.zapLogger != nil {
+		l.zapLogger.Sugar().Debug(args...)
 	}
 }
 
 func (l *Logger) Info(args ...interface{}) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if l.sugar != nil {
-		l.sugar.Info(args...)
+	if l.zapLogger != nil {
+		l.zapLogger.Sugar().Info(args...)
 	}
 }
 
 func (l *Logger) Warn(args ...interface{}) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if l.sugar != nil {
-		l.sugar.Warn(args...)
+	if l.zapLogger != nil {
+		l.zapLogger.Sugar().Warn(args...)
 	}
 }
 
 func (l *Logger) Error(args ...interface{}) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if l.sugar != nil {
-		l.sugar.Error(args...)
+	if l.zapLogger != nil {
+		l.zapLogger.Sugar().Error(args...)
 	}
 }
 
 func (l *Logger) Fatal(args ...interface{}) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if l.sugar != nil {
-		l.sugar.Fatal(args...)
+	if l.zapLogger != nil {
+		l.zapLogger.Sugar().Fatal(args...)
 	}
 }
 
 // Sync 刷新日志缓冲区
 func (l *Logger) Sync() error {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
 	if l.zapLogger != nil {
 		return l.zapLogger.Sync()
 	}
@@ -185,10 +158,16 @@ func (l *Logger) Sync() error {
 
 // ZapLogger returns the underlying zap logger for libraries that use structured zap fields.
 func (l *Logger) ZapLogger() *zap.Logger {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
 	if l.zapLogger == nil {
 		return zap.NewNop()
 	}
 	return l.zapLogger
+}
+
+// SugaredLogger returns the underlying zap.SugaredLogger for libraries that use the sugared API.
+func (l *Logger) SugaredLogger() *zap.SugaredLogger {
+	if l.zapLogger == nil {
+		return zap.NewNop().Sugar()
+	}
+	return l.zapLogger.Sugar()
 }

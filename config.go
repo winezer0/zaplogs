@@ -31,14 +31,9 @@ func NewLogConfig(level, logFile, consoleFormat string) LogConfig {
 }
 
 // NewLogConfigEmpty 创建日志配置实例，提供全部默认值
+// MaxBackups 默认 3，其余与 NewLogConfig 一致
 func NewLogConfigEmpty() LogConfig {
-	return LogConfig{
-		Level:         "info",
-		LogFile:       "",
-		ConsoleFormat: "LCM",
-		MaxSize:       100,  // 单个文件最大100MB
-		MaxBackups:    3,    // 最多保留10个备份
-		MaxAge:        30,   // 保留30天
-		Compress:      true, // 压缩备份文件
-	}
+	cfg := NewLogConfig("info", "", "LCM")
+	cfg.MaxBackups = 3
+	return cfg
 }

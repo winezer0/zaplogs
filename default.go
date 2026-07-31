@@ -22,12 +22,16 @@ func NewDefaultLogger(level, logFile, consoleFormat string) error {
 	return InitDefaultLogger(NewLogConfig(level, logFile, consoleFormat))
 }
 
-// ensureDefaultLogger 确保 defaultLogger 已初始化，如果未初始化则自动初始化（线程安全）
+// ensureDefaultLogger 确保 defaultLogger 已初始化，失败时用 Nop 兜底，保证永不为 nil
 func ensureDefaultLogger() {
 	if defaultLogger == nil {
 		defaultLoggerOnce.Do(func() {
 			if err := InitDefaultLogger(NewLogConfigEmpty()); err != nil {
 				fmt.Printf("init logger error: %v\n", err)
+				// fallback: Nop logger 兜底，保证 defaultLogger 永不为 nil
+				defaultLogger = &Logger{
+					zapLogger: zap.NewNop(),
+				}
 			}
 		})
 	}
@@ -36,88 +40,68 @@ func ensureDefaultLogger() {
 // Sync 旧版本全局刷新函数
 func Sync() error {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		return defaultLogger.Sync()
-	}
-	return nil
+	return defaultLogger.Sync()
+}
+
+// DefaultLogger returns the default *Logger instance for use with interface types.
+func DefaultLogger() *Logger {
+	ensureDefaultLogger()
+	return defaultLogger
 }
 
 // DefaultZapLogger returns the configured default logger for structured zap consumers.
 func DefaultZapLogger() *zap.Logger {
 	ensureDefaultLogger()
-	if defaultLogger == nil {
-		return zap.NewNop()
-	}
 	return defaultLogger.ZapLogger()
 }
 
 // 旧版本全局日志函数，直接转发到 default 日志器
 func Debugf(template string, args ...interface{}) {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		defaultLogger.Debugf(template, args...)
-	}
+	defaultLogger.Debugf(template, args...)
 }
 
 func Infof(template string, args ...interface{}) {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		defaultLogger.Infof(template, args...)
-	}
+	defaultLogger.Infof(template, args...)
 }
 
 func Warnf(template string, args ...interface{}) {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		defaultLogger.Warnf(template, args...)
-	}
+	defaultLogger.Warnf(template, args...)
 }
 
 func Errorf(template string, args ...interface{}) {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		defaultLogger.Errorf(template, args...)
-	}
+	defaultLogger.Errorf(template, args...)
 }
 
 func Fatalf(template string, args ...interface{}) {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		defaultLogger.Fatalf(template, args...)
-	}
+	defaultLogger.Fatalf(template, args...)
 }
 
 func Debug(args ...interface{}) {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		defaultLogger.Debug(args...)
-	}
+	defaultLogger.Debug(args...)
 }
 
 func Info(args ...interface{}) {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		defaultLogger.Info(args...)
-	}
+	defaultLogger.Info(args...)
 }
 
 func Warn(args ...interface{}) {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		defaultLogger.Warn(args...)
-	}
+	defaultLogger.Warn(args...)
 }
 
 func Error(args ...interface{}) {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		defaultLogger.Error(args...)
-	}
+	defaultLogger.Error(args...)
 }
 
 func Fatal(args ...interface{}) {
 	ensureDefaultLogger()
-	if defaultLogger != nil {
-		defaultLogger.Fatal(args...)
-	}
+	defaultLogger.Fatal(args...)
 }
