@@ -21,7 +21,7 @@ func (manager *loggerManager) GetLogger(name string) (*Logger, bool) {
 	return logger, exists
 }
 
-// CloseAll 关闭所有日志器
+// CloseAll 关闭所有日志器（先刷新缓冲，再关闭底层文件）
 func (manager *loggerManager) CloseAll() error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
@@ -29,6 +29,9 @@ func (manager *loggerManager) CloseAll() error {
 	var errList []error
 	for name, logger := range manager.loggers {
 		if err := logger.Sync(); err != nil {
+			errList = append(errList, fmt.Errorf("sync log recorder '%s' error: %w", name, err))
+		}
+		if err := logger.Close(); err != nil {
 			errList = append(errList, fmt.Errorf("close log recorder '%s' error: %w", name, err))
 		}
 	}
@@ -52,13 +55,13 @@ func createManagerOnce() *loggerManager {
 
 // CreateLogger 创建新的日志器
 func (manager *loggerManager) CreateLogger(name string, config LogConfig) (*Logger, error) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
 	if name == "" {
 		return nil, fmt.Errorf("log recorder name cannot be empty")
 	}
-	manager.mu.RLock()
-	_, exists := manager.loggers[name]
-	manager.mu.RUnlock()
-	if exists {
+	if _, exists := manager.loggers[name]; exists {
 		return nil, fmt.Errorf("log recorder already exist: %s", name)
 	}
 
@@ -67,10 +70,7 @@ func (manager *loggerManager) CreateLogger(name string, config LogConfig) (*Logg
 		return nil, err
 	}
 
-	manager.mu.Lock()
 	manager.loggers[name] = logger
-	manager.mu.Unlock()
-
 	return logger, nil
 }
 
@@ -89,5 +89,10 @@ func GetLogger(name string) (*Logger, bool) {
 // CloseAll 关闭所有日志器
 func CloseAll() error {
 	manager := createManagerOnce()
-	return manager.CloseAll()
+	err := manager.CloseAll()
+	// 重置默认日志器，允许关闭后重新初始化
+	defaultLoggerMu.Lock()
+	defaultLogger = nil
+	defaultLoggerMu.Unlock()
+	return err
 }

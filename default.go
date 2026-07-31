@@ -1,20 +1,26 @@
 package zaplogs
 
 import (
-	"fmt"
 	"sync"
 
 	"go.uber.org/zap"
 )
 
-var defaultLogger *Logger       // 旧版本默认日志器
-var defaultLoggerOnce sync.Once // 用于确保 defaultLogger 只初始化一次
+var (
+	defaultLogger   *Logger      // 旧版本默认日志器
+	defaultLoggerMu sync.Mutex   // 保护 defaultLogger 的初始化和重置
+)
 
 // InitDefaultLogger 旧版本初始化函数，兼容老代码
 func InitDefaultLogger(config LogConfig) error {
-	var err error
-	defaultLogger, err = CreateLogger("default", config)
-	return err
+	logger, err := CreateLogger("default", config)
+	if err != nil {
+		return err
+	}
+	defaultLoggerMu.Lock()
+	defaultLogger = logger
+	defaultLoggerMu.Unlock()
+	return nil
 }
 
 // NewDefaultLogger 旧版本初始化函数，兼容老代码
@@ -23,17 +29,23 @@ func NewDefaultLogger(level, logFile, consoleFormat string) error {
 }
 
 // ensureDefaultLogger 确保 defaultLogger 已初始化，失败时用 Nop 兜底，保证永不为 nil
+// 线程安全，支持 CloseAll 后重新初始化
 func ensureDefaultLogger() {
 	if defaultLogger == nil {
-		defaultLoggerOnce.Do(func() {
-			if err := InitDefaultLogger(NewLogConfigEmpty()); err != nil {
-				fmt.Printf("init logger error: %v\n", err)
-				// fallback: Nop logger 兜底，保证 defaultLogger 永不为 nil
-				defaultLogger = &Logger{
-					zapLogger: zap.NewNop(),
-				}
+		defaultLoggerMu.Lock()
+		defer defaultLoggerMu.Unlock()
+		if defaultLogger == nil {
+			logger, err := CreateLogger("default", NewLogConfigEmpty())
+			if err != nil {
+				// 可能已被显式初始化过，尝试获取
+				logger, _ = GetLogger("default")
 			}
-		})
+			if logger == nil {
+				// fallback: Nop logger 兜底，保证 defaultLogger 永不为 nil
+				logger = &Logger{zapLogger: zap.NewNop()}
+			}
+			defaultLogger = logger
+		}
 	}
 }
 

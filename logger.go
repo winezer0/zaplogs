@@ -2,6 +2,7 @@ package zaplogs
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sync"
 
@@ -17,6 +18,7 @@ type Logger struct {
 	zapLogger *zap.Logger
 	config    LogConfig
 	mu        sync.RWMutex
+	closer    io.Closer // 底层文件(如 lumberjack)，关闭时释放文件句柄
 }
 
 // init 初始化日志器核心(已修正EncodeTime配置)
@@ -70,6 +72,7 @@ func (l *Logger) init() error {
 			zapcore.AddSync(rotator),
 			level,
 		))
+		l.closer = rotator
 	}
 
 	if len(cores) == 0 {
@@ -152,6 +155,19 @@ func (l *Logger) Fatal(args ...interface{}) {
 func (l *Logger) Sync() error {
 	if l.zapLogger != nil {
 		return l.zapLogger.Sync()
+	}
+	return nil
+}
+
+// Close 关闭日志器底层资源（如日志文件），释放文件句柄
+// 调用前应确保不再有并发日志写入
+func (l *Logger) Close() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closer != nil {
+		err := l.closer.Close()
+		l.closer = nil
+		return err
 	}
 	return nil
 }
