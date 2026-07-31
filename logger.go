@@ -182,3 +182,13 @@ func (l *Logger) Sync() error {
 	}
 	return nil
 }
+
+// ZapLogger returns the underlying zap logger for libraries that use structured zap fields.
+func (l *Logger) ZapLogger() *zap.Logger {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	if l.zapLogger == nil {
+		return zap.NewNop()
+	}
+	return l.zapLogger
+}

@@ -3,6 +3,8 @@ package zaplogs
 import (
 	"fmt"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
 var defaultLogger *Logger       // 旧版本默认日志器
@@ -38,6 +40,15 @@ func Sync() error {
 		return defaultLogger.Sync()
 	}
 	return nil
+}
+
+// DefaultZapLogger returns the configured default logger for structured zap consumers.
+func DefaultZapLogger() *zap.Logger {
+	ensureDefaultLogger()
+	if defaultLogger == nil {
+		return zap.NewNop()
+	}
+	return defaultLogger.ZapLogger()
 }
 
 // 旧版本全局日志函数，直接转发到 default 日志器
