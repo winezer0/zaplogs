@@ -22,7 +22,7 @@ func main() {
 	fmt.Println("\n=== 自定义配置 ===")
 
 	// 创建配置: 级别=debug, 无文件输出, 控制台格式=TLCM(时间+级别+调用者+消息)
-	config := zaplogs.NewLogConfig("debug", "", "TLCM")
+	config := zaplogs.NewConfig("debug", "", "TLCM")
 
 	// 初始化默认日志器（覆盖自动创建的默认配置）
 	if err := zaplogs.InitDefaultLogger(config); err != nil {

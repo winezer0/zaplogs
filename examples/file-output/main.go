@@ -18,7 +18,7 @@ func main() {
 	fmt.Println("\n--- 仅文件输出 ---")
 
 	// 控制台格式设为 "off" 关闭控制台输出，日志仅写入文件
-	fileOnlyConfig := zaplogs.NewLogConfig("debug", filepath.Join(logDir, "app.log"), "off")
+	fileOnlyConfig := zaplogs.NewConfig("debug", filepath.Join(logDir, "app.log"), "off")
 	fileLogger, err := zaplogs.CreateLogger("file-only", fileOnlyConfig)
 	if err != nil {
 		panic(fmt.Sprintf("创建文件日志器失败: %v", err))
@@ -34,7 +34,7 @@ func main() {
 	// ==================== 同时输出到控制台和文件 ====================
 	fmt.Println("\n--- 控制台 + 文件双输出 ---")
 
-	dualConfig := zaplogs.NewLogConfig("info", filepath.Join(logDir, "dual.log"), "TLCM")
+	dualConfig := zaplogs.NewConfig("info", filepath.Join(logDir, "dual.log"), "TLCM")
 	dualLogger, err := zaplogs.CreateLogger("dual-output", dualConfig)
 	if err != nil {
 		panic(fmt.Sprintf("创建双输出日志器失败: %v", err))
@@ -49,9 +49,9 @@ func main() {
 
 	// 手动配置轮转参数
 	customConfig := zaplogs.LogConfig{
-		Level:         "debug",
-		LogFile:       filepath.Join(logDir, "custom.log"),
-		ConsoleFormat: "LM",  // 控制台仅显示级别+消息
+		ConsoleLevel:  "debug",
+		LogFilePath:   filepath.Join(logDir, "custom.log"),
+		ConsoleFormat: "LM",  // 控制台仅显示级别+消息（非标准值视为掩码）
 		MaxSize:       1,     // 单个文件最大 1MB（便于测试轮转）
 		MaxBackups:    5,     // 最多保留 5 个备份
 		MaxAge:        7,     // 保留 7 天

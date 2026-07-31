@@ -7,8 +7,8 @@ import (
 )
 
 var (
-	defaultLogger   *Logger      // 旧版本默认日志器
-	defaultLoggerMu sync.Mutex   // 保护 defaultLogger 的初始化和重置
+	defaultLogger   *Logger    // 旧版本默认日志器
+	defaultLoggerMu sync.Mutex // 保护 defaultLogger 的初始化和重置
 )
 
 // InitDefaultLogger 旧版本初始化函数，兼容老代码
@@ -25,7 +25,7 @@ func InitDefaultLogger(config LogConfig) error {
 
 // NewDefaultLogger 旧版本初始化函数，兼容老代码
 func NewDefaultLogger(level, logFile, consoleFormat string) error {
-	return InitDefaultLogger(NewLogConfig(level, logFile, consoleFormat))
+	return InitDefaultLogger(NewConfig(level, logFile, consoleFormat))
 }
 
 // ensureDefaultLogger 确保 defaultLogger 已初始化，失败时用 Nop 兜底，保证永不为 nil
@@ -35,7 +35,7 @@ func ensureDefaultLogger() {
 		defaultLoggerMu.Lock()
 		defer defaultLoggerMu.Unlock()
 		if defaultLogger == nil {
-			logger, err := CreateLogger("default", NewLogConfigEmpty())
+			logger, err := CreateLogger("default", DefaultConfig())
 			if err != nil {
 				// 可能已被显式初始化过，尝试获取
 				logger, _ = GetLogger("default")

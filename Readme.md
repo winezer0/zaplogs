@@ -9,7 +9,7 @@
 - **零配置启动** — 无需任何初始化即可直接使用全局日志函数
 - **多日志器管理** — 按名称创建和管理多个独立日志器
 - **日志轮转** — 基于 [lumberjack](https://github.com/natefinch/lumberjack) 实现自动日志切割与压缩
-- **灵活的控制台格式** — 通过格式字符串自定义输出字段（时间/级别/调用者/消息）
+- **灵活的控制台格式** — 支持掩码（`TLCM` 风格）/ key=value 文本 / JSON 三种输出模式，可随时切换或关闭
 - **并发安全** — 所有日志器操作均为线程安全
 - **高性能** — 底层基于 zap，保持极低开销
 
@@ -46,9 +46,18 @@ package main
 import "zaplogs"
 
 func main() {
-    // 创建配置: 级别, 日志文件路径, 控制台格式
-    config := zaplogs.NewLogConfig("debug", "./logs/app.log", "TLCM")
-    
+    // 使用 LogConfig 结构体直接配置（推荐方式）
+    config := zaplogs.LogConfig{
+        Level:         "debug",           // debug / info / warn / error / fatal
+        ConsoleFormat: "text",            // 控制台: "" / "text" / "json" / "off"
+        LogFilePath:   "./logs/app.log",  // 文件输出路径，空串表示不输出文件
+        LogFileFormat: "json",            // 文件格式: "" 默认 json / "text" / "json" / "off"
+        MaxSize:       100,               // 单文件最大 100MB
+        MaxBackups:    10,                // 最多保留 10 个备份
+        MaxAge:        30,                // 保留 30 天
+        Compress:      true,              // 压缩备份文件
+    }
+
     // 初始化默认日志器
     if err := zaplogs.InitDefaultLogger(config); err != nil {
         panic(err)
@@ -68,15 +77,33 @@ package main
 import "zaplogs"
 
 func main() {
-    // 创建业务日志器
-    bizConfig := zaplogs.NewLogConfig("info", "./logs/biz.log", "LCM")
+    // 业务日志器：控制台使用掩码格式（级别 + 调用者 + 消息），写入 JSON 文件
+    bizConfig := zaplogs.LogConfig{
+        Level:         "info",
+        ConsoleFormat: "LCM",                // 掩码格式（非标准值 = 掩码串）：级别 + 调用者 + 消息
+        LogFilePath:   "./logs/biz.log",
+        LogFileFormat: "json",
+        MaxSize:       100,
+        MaxBackups:    10,
+        MaxAge:        30,
+        Compress:      true,
+    }
     bizLogger, err := zaplogs.CreateLogger("business", bizConfig)
     if err != nil {
         panic(err)
     }
 
-    // 创建访问日志器
-    accessConfig := zaplogs.NewLogConfig("info", "./logs/access.log", "TM")
+    // 访问日志器：控制台使用 JSON 格式，同时写入文件
+    accessConfig := zaplogs.LogConfig{
+        Level:         "info",
+        ConsoleFormat: "json",               // slog json 风格
+        LogFilePath:   "./logs/access.log",
+        LogFileFormat: "json",
+        MaxSize:       50,
+        MaxBackups:    5,
+        MaxAge:        7,
+        Compress:      true,
+    }
     accessLogger, err := zaplogs.CreateLogger("access", accessConfig)
     if err != nil {
         panic(err)
@@ -103,8 +130,9 @@ func main() {
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `Level` | string | `"info"` | 日志级别: `debug` / `info` / `warn` / `error` / `fatal` |
-| `LogFile` | string | `""` | 日志文件路径，空串表示不输出到文件 |
-| `ConsoleFormat` | string | `"LCM"` | 控制台输出格式，`"off"` 或空串关闭控制台输出 |
+| `ConsoleFormat` | string | `""` | 控制台输出格式（见"控制台格式"节）。`""` 默认回退到掩码 `"LCM"`；非标准值（如 `"TLCM"`）视为掩码串（旧版兼容） |
+| `LogFileFormat` | string | `""` | 文件输出格式，取值同 `ConsoleFormat`。`""` 默认 `json`；非标准值视为掩码串 |
+| `LogFilePath` | string | `""` | 日志文件路径，空串表示不输出到文件 |
 | `MaxSize` | int | `100` | 单个日志文件最大大小（MB） |
 | `MaxBackups` | int | `10` | 最多保留的日志备份数量 |
 | `MaxAge` | int | `30` | 日志文件保留天数 |
@@ -112,7 +140,17 @@ func main() {
 
 ### 控制台格式字符串
 
-格式字符串由以下字符组合而成：
+`ConsoleFormat` 支持以下取值：
+
+| 格式 | 说明 |
+|------|------|
+| `""` | 默认，回退到掩码格式 `"LCM"` |
+| `"text"` | zap 内置 console 编码器：`<时间>\t<级别>\t<调用者>\t<消息>\t{...}`，人可读前缀以 tab 分隔，结构化字段以 JSON 对象追加在后。如 `2024-05-20T15:30:00.000+0800\tINFO\tmain.go:20\tuser logged in\t{"uid":42}` |
+| `"json"` | zap JSON 编码器（slog json 风格）：`{"level":"info","ts":"...","caller":"main.go:20","msg":"..."}` |
+| `"off"` | 关闭控制台输出 |
+| 其它非空值 | 视为掩码串（旧版兼容），如 `"TLCM"`、`"LM"` |
+
+掩码格式由以下字符组合而成（`ConsoleFormat` / `LogFileFormat` 设为非标准值时即作为掩码处理）：
 
 | 字符 | 含义 | 示例输出 |
 |------|------|----------|
@@ -130,7 +168,56 @@ zaplogs.NewLogConfig(level, logFile, consoleFormat string) LogConfig
 zaplogs.NewLogConfigEmpty() LogConfig
 ```
 
-`NewLogConfig` 提供默认参数值（`MaxSize=100`、`MaxBackups=10`、`MaxAge=30`、`Compress=true`）；`NewLogConfigEmpty` 返回全部默认值（`MaxBackups` 默认 `3`，其余与 `NewLogConfig` 一致）。
+`NewLogConfig` 是**旧版便捷构造函数**：第 3 个参数 `consoleFormat` 直接写入 `ConsoleFormat`（传入 `"LCM"` 即等价于 `ConsoleFormat: "LCM"`，作为掩码串处理），保持与早期版本的兼容。`NewLogConfig` 内部填充默认值：`MaxSize=100`、`MaxBackups=10`、`MaxAge=30`、`Compress=true`。`NewLogConfigEmpty` 返回全部默认值（`MaxBackups` 默认 `3`，其余与 `NewLogConfig` 一致）。
+
+新代码建议直接使用 `LogConfig` 结构体字面量，或从 YAML 读取配置（见下节），以获得全部字段的控制权。
+
+### YAML 配置
+
+`LogConfig` 的每个字段都带有 `yaml` tag，可以直接通过标准 YAML 库反序列化。**库本身不提供 `LoadConfig` 函数** —— 由调用方自行读取并解析 YAML，再将 `LogConfig` 传入 `InitDefaultLogger` / `CreateLogger`。
+
+示例 `config.yaml`：
+
+```yaml
+level: info            # debug / info / warn / error / fatal
+console_format: text   # "" / text / json / off（"" 默认回退到掩码 "LCM"）；非标准值如 "TLCM" 视为掩码串
+log_file_format: json  # "" 默认 json / text / json / off；非标准值视为掩码串
+log_file_path: ./logs/app.log
+max_size: 100          # 单文件最大 MB
+max_backups: 10        # 最多保留备份数
+max_age: 30            # 保留天数
+compress: true         # 是否压缩备份文件
+```
+
+加载并初始化（需要调用方自行引入 YAML 库，如 `gopkg.in/yaml.v3`）：
+
+```go
+package main
+
+import (
+    "os"
+
+    "gopkg.in/yaml.v3" // 调用方自行选择 YAML 库
+    "zaplogs"
+)
+
+func main() {
+    data, err := os.ReadFile("config.yaml")
+    if err != nil {
+        panic(err)
+    }
+
+    var cfg zaplogs.LogConfig
+    if err := yaml.Unmarshal(data, &cfg); err != nil {
+        panic(err)
+    }
+
+    if err := zaplogs.InitDefaultLogger(cfg); err != nil {
+        panic(err)
+    }
+    defer zaplogs.Sync()
+}
+```
 
 ## API 概览
 

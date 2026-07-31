@@ -1,18 +1,42 @@
 package zaplogs
 
-// LogConfig 日志配置结构体
+// LogConfig holds logging configuration.
 type LogConfig struct {
-	Level         string // 日志级别: debug/info/warn/error/fatal
-	LogFile       string // 日志文件路径，空串表示不输出到文件
-	ConsoleFormat string // 控制台格式: 空串或"off"表示关闭，支持"T(时间)L(级别)C(调用者)M(消息)"
-	MaxSize       int    // 单个日志文件文件最大大小
-	MaxBackups    int    // 最多保留几个日志文件备份
-	MaxAge        int    // 日志文件保留多少天
-	Compress      bool   // 日志备份文件是否压缩
+	// ConsoleLevel is the minimum log level for console output: debug, info, warn, error.
+	// Empty string defaults to "info".
+	ConsoleLevel string `yaml:"console_level"`
+	// FileLevel is the minimum log level for file output: debug, info, warn, error.
+	// Empty string defaults to "debug".
+	FileLevel string `yaml:"file_level"`
+	// ConsoleFormat is the console (stdout) output format.
+	//   ""         - fallback to default mask "LCM"
+	//   "text"     - console text format (zap console; structured fields appended as a JSON object)
+	//   "json"     - json format
+	//   "off"      - disable console output
+	//   any other  - mask format, e.g. "TLCM", "LM" (T=time L=level C=caller M=message)
+	ConsoleFormat string `yaml:"console_format"`
+
+	// LogFileFormat is the file output format (same value options as ConsoleFormat).
+	//   ""         - fallback to default "json"
+	//   "text"     - console text format
+	//   "json"     - json format
+	//   "off"      - disable file output
+	//   any other  - mask format
+	LogFileFormat string `yaml:"log_file_format"`
+	// LogFilePath is the log file path; empty means no file output.
+	LogFilePath string `yaml:"log_file_path"`
+	// MaxSize is the maximum size in megabytes of a single log file before rotation.
+	MaxSize int `yaml:"max_size"`
+	// MaxBackups is the maximum number of old log files to retain.
+	MaxBackups int `yaml:"max_backups"`
+	// MaxAge is the maximum number of days to retain old log files.
+	MaxAge int `yaml:"max_age"`
+	// Compress determines whether rotated files are compressed.
+	Compress bool `yaml:"compress"`
 }
 
-// NewLogConfig 创建日志配置实例，提供默认值
-func NewLogConfig(level, logFile, consoleFormat string) LogConfig {
+// NewConfig 创建日志配置实例，提供默认值
+func NewConfig(level, logFile, consoleFormat string) LogConfig {
 	if level == "" {
 		level = "info" // 默认info级别
 	}
@@ -20,20 +44,21 @@ func NewLogConfig(level, logFile, consoleFormat string) LogConfig {
 		consoleFormat = "LCM"
 	}
 	return LogConfig{
-		Level:         level,
-		LogFile:       logFile,
+		ConsoleLevel:  level,
 		ConsoleFormat: consoleFormat,
-		MaxSize:       100,  // 单个文件最大100MB
-		MaxBackups:    10,   // 最多保留10个备份
-		MaxAge:        30,   // 保留30天
-		Compress:      true, // 压缩备份文件
+
+		FileLevel:     "debug",
+		LogFileFormat: "json",
+		LogFilePath:   logFile,
+
+		MaxSize:    100,  // 单个文件最大100MB
+		MaxBackups: 3,    // 最多保留10个备份
+		MaxAge:     30,   // 保留30天
+		Compress:   true, // 压缩备份文件
 	}
 }
 
-// NewLogConfigEmpty 创建日志配置实例，提供全部默认值
-// MaxBackups 默认 3，其余与 NewLogConfig 一致
-func NewLogConfigEmpty() LogConfig {
-	cfg := NewLogConfig("info", "", "LCM")
-	cfg.MaxBackups = 3
-	return cfg
+// DefaultConfig 创建日志配置实例，提供全部默认值
+func DefaultConfig() LogConfig {
+	return NewConfig("info", "", "LCM")
 }

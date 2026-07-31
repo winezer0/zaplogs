@@ -4,7 +4,7 @@ import "testing"
 
 // TestInitDefaultLogger 测试初始化默认日志器
 func TestInitDefaultLogger(t *testing.T) {
-	config := NewLogConfig("debug", "", "TLCM")
+	config := NewConfig("debug", "", "TLCM")
 	err := InitDefaultLogger(config)
 	if err != nil {
 		t.Fatalf("Failed to init logger: %v", err)
@@ -21,7 +21,7 @@ func TestInitDefaultLogger(t *testing.T) {
 
 // TestSync 测试同步日志
 func TestSync(t *testing.T) {
-	config := NewLogConfig("debug", "", "TLCM")
+	config := NewConfig("debug", "", "TLCM")
 	err := InitDefaultLogger(config)
 	if err != nil {
 		t.Fatalf("Failed to init logger: %v", err)

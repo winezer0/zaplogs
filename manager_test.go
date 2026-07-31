@@ -12,7 +12,7 @@ func TestCreateLogger(t *testing.T) {
 	logFile := filepath.Join(tmpDir, "test_logger.log")
 	defer os.Remove(logFile)
 
-	config := NewLogConfig("debug", logFile, "TLCM")
+	config := NewConfig("debug", logFile, "TLCM")
 	logger, err := CreateLogger("test", config)
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
@@ -35,7 +35,7 @@ func TestCreateLogger(t *testing.T) {
 
 // TestCreateLoggerDuplicate 测试重复创建日志器
 func TestCreateLoggerDuplicate(t *testing.T) {
-	config := NewLogConfig("debug", "", "TLCM")
+	config := NewConfig("debug", "", "TLCM")
 	_, err := CreateLogger("duplicate", config)
 	if err != nil {
 		t.Fatalf("Failed to create first logger: %v", err)
@@ -53,7 +53,7 @@ func TestCreateLoggerDuplicate(t *testing.T) {
 
 // TestGetLogger 测试获取日志器
 func TestGetLogger(t *testing.T) {
-	config := NewLogConfig("debug", "", "TLCM")
+	config := NewConfig("debug", "", "TLCM")
 	_, err := CreateLogger("gettest", config)
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)

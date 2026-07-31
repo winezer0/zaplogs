@@ -26,57 +26,88 @@ func (l *Logger) init() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// 解析日志级别
-	var level zapcore.Level
-	if err := level.UnmarshalText([]byte(l.config.Level)); err != nil {
-		level = zapcore.InfoLevel // 默认为info级别
+	// 解析控制台日志级别
+	var consoleLevel zapcore.Level
+	if l.config.ConsoleLevel != "" {
+		if err := consoleLevel.UnmarshalText([]byte(l.config.ConsoleLevel)); err != nil {
+			consoleLevel = zapcore.InfoLevel
+		}
+	} else {
+		consoleLevel = zapcore.InfoLevel // 默认为info级别
+	}
+
+	// 解析文件日志级别
+	var fileLevel zapcore.Level
+	if l.config.FileLevel != "" {
+		if err := fileLevel.UnmarshalText([]byte(l.config.FileLevel)); err != nil {
+			fileLevel = zapcore.DebugLevel
+		}
+	} else {
+		fileLevel = zapcore.DebugLevel // 默认为debug级别
 	}
 
 	// 准备输出核心
 	var cores []zapcore.Core
 
 	// 控制台输出
-	if l.config.ConsoleFormat != "" && l.config.ConsoleFormat != "off" {
-		encoder := newConsoleEncoder(l.config.ConsoleFormat)
+	consoleKind, consoleMask := resolveOutput(l.config.ConsoleFormat, "mask", "LCM")
+	if consoleKind != "off" {
+		var enc zapcore.Encoder
+		switch consoleKind {
+		case "json":
+			enc = newJSONEncoder()
+		case "text":
+			enc = newTextEncoder()
+		default: // "mask"
+			enc = newMaskEncoder(consoleMask)
+		}
 		cores = append(cores, zapcore.NewCore(
-			encoder,
+			enc,
 			zapcore.Lock(os.Stdout),
-			level,
+			consoleLevel,
 		))
 	}
 
 	// 文件输出(带日志轮转，正确配置时间格式)
-	if l.config.LogFile != "" {
-		if err := ensureDir(l.config.LogFile); err != nil {
-			return fmt.Errorf("failed to create log dir: %w", err)
+	if l.config.LogFilePath != "" {
+		fileKind, fileMask := resolveOutput(l.config.LogFileFormat, "json", "")
+		if fileKind != "off" {
+			if err := ensureDir(l.config.LogFilePath); err != nil {
+				return fmt.Errorf("failed to create log dir: %w", err)
+			}
+
+			// 日志轮转配置
+			rotator := &lumberjack.Logger{
+				Filename:   l.config.LogFilePath,
+				MaxSize:    l.config.MaxSize,
+				MaxBackups: l.config.MaxBackups,
+				MaxAge:     l.config.MaxAge,
+				Compress:   l.config.Compress,
+			}
+
+			// 文件编码器
+			var fileEnc zapcore.Encoder
+			switch fileKind {
+			case "text":
+				fileEnc = newTextEncoder()
+			case "mask":
+				fileEnc = newMaskEncoder(fileMask)
+			default: // "json"
+				fileEnc = newJSONEncoder()
+			}
+			cores = append(cores, zapcore.NewCore(
+				fileEnc,
+				zapcore.AddSync(rotator),
+				fileLevel,
+			))
+			l.closer = rotator
 		}
-
-		// 日志轮转配置
-		rotator := &lumberjack.Logger{
-			Filename:   l.config.LogFile,
-			MaxSize:    l.config.MaxSize,    // 单个文件最大100MB
-			MaxBackups: l.config.MaxBackups, // 最多保留10个备份
-			MaxAge:     l.config.MaxAge,     // 保留30天
-			Compress:   l.config.Compress,   // 压缩备份文件
-		}
-
-		// 配置文件日志编码器(含时间格式)
-		fileEncoderCfg := zap.NewProductionEncoderConfig()
-		// 配置时间格式为ISO8601(如：2024-05-20T15:30:00.000Z)
-		fileEncoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
-
-		// 创建JSON格式编码器
-		fileEncoder := zapcore.NewJSONEncoder(fileEncoderCfg)
-		cores = append(cores, zapcore.NewCore(
-			fileEncoder,
-			zapcore.AddSync(rotator),
-			level,
-		))
-		l.closer = rotator
 	}
 
+	// 无任何输出目标（控制台与文件均关闭）时，使用 Nop logger 静默丢弃所有记录
 	if len(cores) == 0 {
-		return fmt.Errorf("no log output (console/file) has been configured")
+		l.zapLogger = zap.NewNop()
+		return nil
 	}
 
 	// 创建zap日志器

@@ -10,14 +10,14 @@ func main() {
 	fmt.Println("=== 多日志器管理示例 ===")
 
 	// 创建业务日志器（仅控制台输出，格式: 级别+调用者+消息）
-	bizConfig := zaplogs.NewLogConfig("debug", "", "LCM")
+	bizConfig := zaplogs.NewConfig("debug", "", "LCM")
 	bizLogger, err := zaplogs.CreateLogger("business", bizConfig)
 	if err != nil {
 		panic(fmt.Sprintf("创建业务日志器失败: %v", err))
 	}
 
 	// 创建访问日志器（仅控制台输出，格式: 时间+消息）
-	accessConfig := zaplogs.NewLogConfig("info", "", "TM")
+	accessConfig := zaplogs.NewConfig("info", "", "TM")
 	accessLogger, err := zaplogs.CreateLogger("access", accessConfig)
 	if err != nil {
 		panic(fmt.Sprintf("创建访问日志器失败: %v", err))

@@ -9,7 +9,7 @@ A lightweight logging wrapper built on [uber-go/zap](https://github.com/uber-go/
 - **Zero-config startup** — Use global log functions without any initialization
 - **Multi-logger management** — Create and manage multiple independent loggers by name
 - **Log rotation** — Automatic log splitting and compression via [lumberjack](https://github.com/natefinch/lumberjack)
-- **Flexible console format** — Customize output fields with a format string (Time/Level/Caller/Message)
+- **Flexible console format** — Three console output modes: mask (`TLCM` style), text (zap console encoder), and JSON; switch or disable anytime
 - **Concurrency-safe** — All logger operations are thread-safe
 - **High performance** — Built on zap with minimal overhead
 
@@ -46,9 +46,18 @@ package main
 import "zaplogs"
 
 func main() {
-    // Create config: level, log file path, console format
-    config := zaplogs.NewLogConfig("debug", "./logs/app.log", "TLCM")
-    
+    // Use a LogConfig struct literal (recommended for new code)
+    config := zaplogs.LogConfig{
+        Level:         "debug",           // debug / info / warn / error / fatal
+        ConsoleFormat: "text",            // console: "" / "text" / "json" / "off"
+        LogFilePath:   "./logs/app.log",  // file output path; empty disables file output
+        LogFileFormat: "json",            // file format: "" defaults to json / "text" / "json" / "off"
+        MaxSize:       100,               // max MB per file
+        MaxBackups:    10,                // max backup files
+        MaxAge:        30,                // retention in days
+        Compress:      true,              // compress rotated files
+    }
+
     // Initialize the default logger
     if err := zaplogs.InitDefaultLogger(config); err != nil {
         panic(err)
@@ -68,15 +77,33 @@ package main
 import "zaplogs"
 
 func main() {
-    // Create a business logger
-    bizConfig := zaplogs.NewLogConfig("info", "./logs/biz.log", "LCM")
+    // Business logger: console uses mask format (Level + Caller + Message), JSON file output
+    bizConfig := zaplogs.LogConfig{
+        Level:         "info",
+        ConsoleFormat: "LCM",                // mask format (non-standard value = mask string): Level + Caller + Message
+        LogFilePath:   "./logs/biz.log",
+        LogFileFormat: "json",
+        MaxSize:       100,
+        MaxBackups:    10,
+        MaxAge:        30,
+        Compress:      true,
+    }
     bizLogger, err := zaplogs.CreateLogger("business", bizConfig)
     if err != nil {
         panic(err)
     }
 
-    // Create an access logger
-    accessConfig := zaplogs.NewLogConfig("info", "./logs/access.log", "TM")
+    // Access logger: console uses JSON format, also writes to file
+    accessConfig := zaplogs.LogConfig{
+        Level:         "info",
+        ConsoleFormat: "json",               // slog json style
+        LogFilePath:   "./logs/access.log",
+        LogFileFormat: "json",
+        MaxSize:       50,
+        MaxBackups:    5,
+        MaxAge:        7,
+        Compress:      true,
+    }
     accessLogger, err := zaplogs.CreateLogger("access", accessConfig)
     if err != nil {
         panic(err)
@@ -103,16 +130,27 @@ func main() {
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `Level` | string | `"info"` | Log level: `debug` / `info` / `warn` / `error` / `fatal` |
-| `LogFile` | string | `""` | Log file path; empty string disables file output |
-| `ConsoleFormat` | string | `"LCM"` | Console output format; `"off"` or empty disables console |
-| `MaxSize` | int | `100` | Max size per log file (MB) |
-| `MaxBackups` | int | `10` | Max number of backup files to retain |
-| `MaxAge` | int | `30` | Max days to retain log files |
-| `Compress` | bool | `true` | Whether to compress backup files |
+| `ConsoleFormat` | string | `""` | Console (stdout) format (see "Console Format" section). `""` defaults to mask `"LCM"`; any non-standard value (e.g. `"TLCM"`) is treated as a mask string (legacy compat). |
+| `LogFileFormat` | string | `""` | File output format, same value options as `ConsoleFormat`. `""` defaults to `"json"`; non-standard values treated as mask strings. |
+| `LogFilePath` | string | `""` | Log file path; empty string disables file output |
+| `MaxSize` | int | `100` | Max size per log file (MB) before rotation |
+| `MaxBackups` | int | `10` | Max backup files retained (`NewLogConfigEmpty` uses `3`) |
+| `MaxAge` | int | `30` | Max days to retain old log files |
+| `Compress` | bool | `true` | Whether to compress rotated files |
 
-### Console Format String
+### Console Format
 
-The format string is composed of the following characters:
+`ConsoleFormat` accepts the following values:
+
+| Value | Description |
+|-------|-------------|
+| `""` | Default; falls back to the mask format `"LCM"` |
+| `"text"` | zap built-in console encoder: `<time>\t<level>\t<caller>\t<message>\t{"field":"value", ...}`. The human-readable prefix is tab-separated; any structured fields are appended as a JSON object. Example: `2024-05-20T15:30:00.000+0800\tINFO\tmain.go:20\tuser logged in\t{"uid":42}` |
+| `"json"` | zap JSON encoder (slog json style): `{"level":"info","ts":"...","caller":"main.go:20","msg":"..."}` |
+| `"off"` | Disable console output |
+| any other non-empty value | Treated as a mask string (legacy compatibility) |
+
+Mask format characters (used when `ConsoleFormat` / `LogFileFormat` is set to a non-standard value):
 
 | Char | Meaning | Example Output |
 |------|---------|----------------|
@@ -121,7 +159,7 @@ The format string is composed of the following characters:
 | `C` | Caller location | `main.go:20` |
 | `M` | Log message | The actual message content |
 
-Examples: `"TLCM"` outputs full info, `"LM"` outputs level and message only, `"off"` disables console.
+Examples: `"TLCM"` outputs full info, `"LM"` outputs level and message only. Console output is written to stdout.
 
 ### Configuration Functions
 
@@ -130,7 +168,56 @@ zaplogs.NewLogConfig(level, logFile, consoleFormat string) LogConfig
 zaplogs.NewLogConfigEmpty() LogConfig
 ```
 
-`NewLogConfig` provides default parameter values (`MaxSize=100`, `MaxBackups=10`, `MaxAge=30`, `Compress=true`); `NewLogConfigEmpty` returns all defaults (`MaxBackups` defaults to `3`, others identical to `NewLogConfig`).
+`NewLogConfig` is the **legacy convenience constructor**: its 3rd argument `consoleFormat` is written directly to `ConsoleFormat` (passing `"LCM"` is equivalent to `ConsoleFormat: "LCM"`, treated as a mask string) for backward compatibility with older versions. `NewLogConfig` fills defaults: `MaxSize=100`, `MaxBackups=10`, `MaxAge=30`, `Compress=true`. `NewLogConfigEmpty` returns all defaults (`MaxBackups` defaults to `3`, others identical to `NewLogConfig`).
+
+New code is encouraged to use a `LogConfig` struct literal or load configuration from YAML (see below) for full control over all fields.
+
+### YAML Configuration
+
+Every field of `LogConfig` carries a `yaml` tag, so it can be deserialized directly with any standard YAML library. **The library itself does not provide a `LoadConfig` function** — callers read and parse the YAML themselves, then pass the resulting `LogConfig` to `InitDefaultLogger` / `CreateLogger`.
+
+Example `config.yaml`:
+
+```yaml
+level: info            # debug / info / warn / error / fatal
+console_format: text   # "" / text / json / off ("" defaults to mask "LCM"); non-standard values like "TLCM" are treated as mask strings
+log_file_format: json  # "" defaults to json / text / json / off; non-standard values treated as mask strings
+log_file_path: ./logs/app.log
+max_size: 100          # max MB per file
+max_backups: 10        # max backup files retained
+max_age: 30            # retention in days
+compress: true          # compress rotated files
+```
+
+Load and initialize (the caller must import a YAML library, e.g. `gopkg.in/yaml.v3`):
+
+```go
+package main
+
+import (
+    "os"
+
+    "gopkg.in/yaml.v3" // caller's choice of YAML library
+    "zaplogs"
+)
+
+func main() {
+    data, err := os.ReadFile("config.yaml")
+    if err != nil {
+        panic(err)
+    }
+
+    var cfg zaplogs.LogConfig
+    if err := yaml.Unmarshal(data, &cfg); err != nil {
+        panic(err)
+    }
+
+    if err := zaplogs.InitDefaultLogger(cfg); err != nil {
+        panic(err)
+    }
+    defer zaplogs.Sync()
+}
+```
 
 ## API Overview
 
